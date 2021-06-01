@@ -19,7 +19,7 @@ import re
 import warnings
 
 from IPython.display import display
-from pandas.tseries.offsets import CustomBusinessDay, Day, BusinessDay
+from pandas.tseries.offsets import BaseOffset, CustomBusinessDay, Day, BusinessDay
 from scipy.stats import mode
 
 
@@ -287,7 +287,10 @@ def compute_forward_returns(
             "tz_convert."
         )
 
-    freq = infer_trading_calendar(factor_dateindex, prices.index)
+    if factor_dateindex.freq:
+        freq = factor_dateindex.freq
+    else:
+        freq = infer_trading_calendar(factor_dateindex, prices.index)
 
     factor_dateindex = factor_dateindex.intersection(prices.index)
 
@@ -1042,8 +1045,11 @@ def diff_custom_calendar_timedeltas(start, end, freq):
     pd.Timedelta
         end - start
     """
-    if not isinstance(freq, (Day, BusinessDay, CustomBusinessDay)):
-        raise ValueError("freq must be Day, BusinessDay or CustomBusinessDay")
+    if not isinstance(freq, BaseOffset):
+        raise ValueError(
+            "freq must be an instance of pandas.tseries.offsets.BaseOffset "
+            "(e.g. Day, BusinessDay or CustomBusinessDay)"
+        )
 
     weekmask = getattr(freq, "weekmask", None)
     holidays = getattr(freq, "holidays", None)
@@ -1067,7 +1073,7 @@ def diff_custom_calendar_timedeltas(start, end, freq):
     else:
         # default, it is slow
         actual_days = pd.date_range(start, end, freq=freq).shape[0] - 1
-        if not freq.onOffset(start):
+        if not freq.is_on_offset(start):
             actual_days -= 1
 
     timediff = end - start
